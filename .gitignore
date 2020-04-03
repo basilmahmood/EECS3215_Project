@@ -8,4 +8,5 @@
 !*.gitignore
 !*EECS3215_Project.c
 !*package.json
+!*index.js
 # etc...
