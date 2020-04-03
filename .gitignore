@@ -1,0 +1,10 @@
+# Ignore everything
+*
+
+# Whitelist anything that's a directory
+!*/
+
+# But not these files...
+!*.gitignore
+!*EECS3215_Project.c
+# etc...
