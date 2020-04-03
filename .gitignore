@@ -4,6 +4,9 @@
 # Whitelist anything that's a directory
 !*/
 
+# But not node_modules
+*/node_modules
+
 # But not these files...
 !*.gitignore
 !*EECS3215_Project.c

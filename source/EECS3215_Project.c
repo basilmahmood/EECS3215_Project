@@ -211,12 +211,12 @@ int main(void) {
 
   float *temp = malloc(sizeof(float));
   int temp_scaled; // Scales the temp by 1000 (due to 3 point precision) into an int. Embedded C has limited functionality with floats
-  char temp_str[10];
+  char temp_str[6];
 
   while(1) {
     lm75_read(temp);
     temp_scaled = (int) ((*temp)*1000);
-    sprintf(temp_str, " %i ", temp_scaled);
+    sprintf(temp_str, "%i\n", temp_scaled);
     USART_WriteBlocking(USART0, temp_str, sizeof(temp_str));
     asm("NOP");
   }
