@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>EECS3215_Project_Basil_Mahmood</title>
+
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.min.css">
+    <style>
+        body {   
+            width: 70%;
+            margin: auto; 
+        }
+        #temp {
+            text-align: center
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="jumbotron">
+            <h1 id="temp">Reading...</h1>
+        </div>
+    </div>
+</body>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.2/axios.min.js"></script>
+<script>
+setInterval(() => {
+    axios.get('/temp')
+    .then(res => {
+        document.getElementById("temp").innerHTML = `${res.data}°C`
+    })
+    .catch(err => console.log(err));
+}, 250)
+</script>
+
+</html>
