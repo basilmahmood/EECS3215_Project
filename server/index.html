@@ -22,37 +22,67 @@
             <h1 id="temp">Reading...</h1>
         </div>
     </div>
+    <div>
+        
+    </div>
 </body>
 
-<table class="table table-striped">
+<table class="table table-striped" id = "table">
     <thead>
-      <tr>
+        <tr>
         <th scope="col">TimeStamp</th>
-        <th scope="col">Temprature (°C)</th>
+        <th scope="col">Temperature (°C)</th>
         <th scope="col">Interval (hh:mm:ss)</th>
-      </tr>
+        </tr>
     </thead>
-    <tbody>
+    <tbody id ="tbody">
     </tbody>
-  </table>
+</table>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.2/axios.min.js"></script>
 <script>
+const table = document.getElementById("tbody");
+let rowsNum = 0;
+
 setInterval(() => {
     axios.get('/temp')
     .then(res => {
         document.getElementById("temp").innerHTML = `${res.data}°C`
     })
     .catch(err => console.log(err));
-}, 250)
+}, 250);
 
 setInterval(() => {
     axios.get('/logs')
     .then(res => {
-        console.log(res.data)
+        const logs = res.data;
+        if (logs.length > rowsNum) {
+            for (let i = rowsNum; i < logs.length; i++){
+
+                rowsNum++;
+                if (logs[i].tempAvg == null) continue;
+
+                // Create an empty <tr> element and add it to the 1st position of the table:
+                var row = table.insertRow(0);
+
+                var cell1 = row.insertCell(0);
+                var cell2 = row.insertCell(1);
+                var cell3 = row.insertCell(2);
+
+                cell1.innerHTML = logs[i].timeStamp;
+                cell2.innerHTML = logs[i].tempAvg.toFixed(3);
+                cell3.innerHTML = logs[i].interval;
+
+
+            }
+        }
+        console.log(res.data);
+
     })
     .catch(err => console.log(err));
-}, 3000)
+}, 1000);
+
+
 </script>
 
 </html>

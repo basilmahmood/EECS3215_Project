@@ -25,7 +25,7 @@ parser.on('data', (buffer) => {
       temp,
       timeStamp: Date.now(),
     });
-    if (tempHistory.length > 100) tempHistory.shift(); // Control array size
+    if (tempHistory.length > 5000) tempHistory.shift(); // Control array size
   }
 
   // Button Logic
@@ -34,18 +34,22 @@ parser.on('data', (buffer) => {
     let logTime = {
       '1': 0, // Button 1 is instantaneous
       '2': 5, // Button 2 records 5 sec
-      '3': 60 // Button 3 records 60
+      '3': 60 // Button 3 records 60 sec
     };
     const endInterval = tempHistory[tempHistory.length - 1].timeStamp;
     let startInterval = tempHistory[tempHistory.length - 1].timeStamp;
 
-    let tempAvg = tempHistory[tempHistory.length - 1].temp;
+    let tempTotal = tempHistory[tempHistory.length - 1].temp;
+    let tempCount = 1;
 
+    // Records the average of temp in interval
     for (let i = tempHistory.length - 2; i >= 0; i--) {
       if ((endInterval - startInterval) >= (logTime[button] * 1000)) break;
-      tempAvg += tempHistory[i].temp;
+      tempTotal += tempHistory[i].temp;
+      tempCount++;
       startInterval = tempHistory[i].timeStamp;
     }
+    const tempAvg = tempTotal/tempCount;
 
     let interval;
     if (button == '1') {
@@ -55,8 +59,10 @@ parser.on('data', (buffer) => {
       const startDate = new Date(startInterval);
       interval = `${startDate.toTimeString().split(" ")[0]} - ${endDate.toTimeString().split(" ")[0]}`;
     }
+
+    const timeStempDateObj = new Date();
     logs.push({
-      timeStamp: Date.now(), // Button pressed
+      timeStamp: timeStempDateObj.toString().split(" ", 5).join(" "),
       tempAvg,
       interval
     });
