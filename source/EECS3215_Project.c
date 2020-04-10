@@ -1,23 +1,16 @@
 #include <stdio.h>
+#include <stdbool.h>
 #include "LPC802.h"
 #include "fsl_i2c.h"
 #include "fsl_usart.h"
 // Defines
 
-#define LED_USER1 (8)// use with WKT
-#define LED_USER2 (9)// use with SysTick
-#define LPC_I2C0BUFFERSize (35)
-#define LPC_I2C0BAUDRate (100000)// 100kHz
-
-volatile uint8_t g_I2C0DataBuf[LPC_I2C0BUFFERSize];
-volatile uint8_t g_I2C0DataCnt;
-
-#define WKT_FREQ 1000000 // Use if the WKT is clocked by the LPOSC
-#define WKT_RELOAD 100000 // Reload value for the WKT down counter
-
-uint32_t g_WKT_RELOAD = WKT_RELOAD; // counter reload value for WKT
-
 #define LM75_I2CAddress (0x4C)
+
+// Push button gpio connections
+#define BUTTON1 (12)
+#define BUTTON2 (11)
+#define BUTTON3 (13)
 
 // Define values for I2C registers that aren't in the header file.
 // Table 195 of LPC802 User Manual
@@ -130,7 +123,24 @@ void usart_setup(){
   USART0->CFG |= USART_CFG_ENABLE_MASK;// set bit 1 to 1.
 }
 
-void lm75_read(float *data){
+// Sets up the gpio and iocon to use the pio0 pins
+void gpio_setup(){
+  SYSCON->SYSAHBCLKCTRL0 |= SYSCON_SYSAHBCLKCTRL0_GPIO0_MASK; // Enable GPIO clock
+  SYSCON->SYSAHBCLKCTRL0 |= SYSCON_SYSAHBCLKCTRL0_IOCON_MASK; // Enable IOCON clock
+
+  IOCON->PIO[IOCON_INDEX_PIO0_12] |= IOCON_PIO_MODE(2); // Pull up resistor enabled for PIO0_12 
+  GPIO->DIR[0] |= 0 << 12; // Set PIO0_12 to input
+
+  IOCON->PIO[IOCON_INDEX_PIO0_11] |= IOCON_PIO_MODE(2); // Pull up resistor enabled for PIO0_11 
+  GPIO->DIR[0] |= 0 << 11; // Set PIO0_11 to input
+
+  IOCON->PIO[IOCON_INDEX_PIO0_13] |= IOCON_PIO_MODE(2); // Pull up resistor enabled for PIO0_13
+  GPIO->DIR[0] |= 0 << 13; // Set PIO0_13 to input
+
+  SYSCON->SYSAHBCLKCTRL0 |= SYSCON_SYSAHBCLKCTRL0_IOCON(0); // Disable IOCON clock to conserve power
+}
+
+void read_temp(float *data){
 	uint8_t LM75_Buf[2];
 
 	WaitI2CPrimaryState(I2C0, I2C_STAT_MSTST_IDLE); // Wait for the Primary's state to be idle
@@ -195,11 +205,36 @@ void WaitI2CPrimaryState(I2C_Type * ptr_LPC_I2C, uint32_t state) {
 	// Primary's state is in bits 3:1. PRIMARY_STATE_MASK is (0x7<<1)
 	if((ptr_LPC_I2C->STAT & PRIMARY_STATE_MASK) != state) // If primary state mismatch
 	{
-	GPIO->DIRCLR[0] = (1UL<<LED_USER2); // turn on LED on PIO0_9 (LED_USER2)
-	while(1); // die here and debug the problem
+	  while(1); // die here and debug the problem
 	}
 	return; // If no mismatch, return
-	}
+}
+
+void checkButtonPressed(int button, bool *button_pressed){
+  char button_str[3];
+  
+  // Button is in pressed state, and was not previously in pressed state (i.e button was pressed)
+  if ((*button_pressed == false) && (GPIO->B[0][button] == 0)) {
+    *button_pressed = true; // Set button_pressed state to true
+  }
+
+  // Button is in not pressed state, and was previously in pressed (i.e button was released)
+  else if ((*button_pressed == true) && (GPIO->B[0][button] == 1)) {
+    switch (button) {
+      case BUTTON1:
+        sprintf(button_str, "B%i\n", 1);
+        break;
+      case BUTTON2:
+        sprintf(button_str, "B%i\n", 2);
+        break;
+      case BUTTON3:
+        sprintf(button_str, "B%i\n", 3);
+        break;
+    }
+    USART_WriteBlocking(USART0, button_str, sizeof(button_str));
+    *button_pressed = false;
+  }
+}
 
 
 int main(void) {
@@ -208,16 +243,24 @@ int main(void) {
 
   i2c_setup();
   usart_setup();
+  gpio_setup();
 
   float *temp = malloc(sizeof(float));
   int temp_scaled; // Scales the temp by 1000 (due to 3 point precision) into an int. Embedded C has limited functionality with floats
-  char temp_str[6];
+  char temp_str[7];
+
+  bool button1_pressed = false;
+  bool button2_pressed = false;
+  bool button3_pressed = false;
 
   while(1) {
-    lm75_read(temp);
+    read_temp(temp);
     temp_scaled = (int) ((*temp)*1000);
-    sprintf(temp_str, "%i\n", temp_scaled);
+    sprintf(temp_str, "T%i\n", temp_scaled);
     USART_WriteBlocking(USART0, temp_str, sizeof(temp_str));
+    checkButtonPressed(BUTTON1, &button1_pressed);
+    checkButtonPressed(BUTTON2, &button2_pressed);
+    checkButtonPressed(BUTTON3, &button3_pressed);
     asm("NOP");
   }
 }
