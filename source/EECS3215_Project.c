@@ -56,71 +56,39 @@ void i2c_setup() {
 
 // Performs the necessary initialization to use the USART
 void usart_setup(){
-    // ----------------------- Begin Core Clock Select -----------------------
-  // Specify that we will use the Free-Running Oscillator
-  // Set the main clock to be the FRO
-  // 0x0 is FRO; 0x1 is external clock ; 0x2 is Low pwr osc.; 0x3 is FRO_DIV
-  // Place in bits 1:0 of MAINCLKSEL.
   SYSCON->MAINCLKSEL = (0x0<<SYSCON_MAINCLKSEL_SEL_SHIFT);
-  // Update the Main Clock
-  // Step 1. write 0 to bit 0 of this register
-  // Step 2. write 1 to bit 0 this register
-  SYSCON->MAINCLKUEN &= ~(0x1);// step 1. (Sec. 6.6.4 of manual)
-  SYSCON->MAINCLKUEN |= 0x1;// step 2. (Sec. 6.6.4 of manual)
-  // Set the FRO frequency (clock_config.h in SDK)
-  //
-  // For FRO at 9MHz: BOARD_BootClockFRO18M();
-  // 12MHz: BOARD_BootClockFRO24M();
-  // 15MHz: BOARD_BootClockFRO30M();
-  // See: Section 7.4 User Manual
-  // This is more complete than just using set_fro_frequency(24000); for 12 MHz
-  BOARD_BootClockFRO24M(); // 30M, 24M or 18M for 15MHz, 12MHz or 9MHz
-  // ----------------------- End of Core Clock Select -----------------------
+  SYSCON->MAINCLKUEN &= ~(0x1);
+  SYSCON->MAINCLKUEN |= 0x1;
 
-  // -------------- Step 1: Turn on the USART0 ---------------------
-  // Bit is 14 (USART0). Set to 1 to turn on USART0.
-  // Optionally, we could also turn on USART1 with bit 15
-  SYSCON->SYSAHBCLKCTRL0 |= (SYSCON_SYSAHBCLKCTRL0_UART0_MASK); // Set bit 14.
-  // -------------- Step 2: Reset the USART0 ---------------------
-  // Set bit 14 to 0: assert (i.e. "make") the USART0 reset
-  // Set bit 14 to 1: remove the USART0 reset
-  SYSCON->PRESETCTRL0 &= ~(SYSCON_PRESETCTRL0_UART0_RST_N_MASK); // Reset USART0
-  SYSCON->PRESETCTRL0 |= (SYSCON_PRESETCTRL0_UART0_RST_N_MASK); // remove the reset.
+  // Turn on clock, reset and remove reset
+  SYSCON->SYSAHBCLKCTRL0 |= SYSCON_SYSAHBCLKCTRL0_UART0_MASK; 
+  SYSCON->PRESETCTRL0 &= ~(SYSCON_PRESETCTRL0_UART0_RST_N_MASK);
+  SYSCON->PRESETCTRL0 |= SYSCON_PRESETCTRL0_UART0_RST_N_MASK;
 
-  // enable switch matrix
+  // switch matrix
   SYSCON->SYSAHBCLKCTRL0 |= (SYSCON_SYSAHBCLKCTRL0_SWM_MASK);
-  // Set switch matrix
-  // Clear bits 15:0
   SWM0->PINASSIGN.PINASSIGN0 &= ~(SWM_PINASSIGN0_U0_TXD_O_MASK | SWM_PINASSIGN0_U0_RXD_I_MASK);
-  // Assign TXD and RXD ports to PINASSIGN0 bits 15:0
-  // TXD is PIO0_4, so put 4 into bits 7:0
-  // RXD is PIO0_0, so put 0 into bits 15:8
   SWM0-> PINASSIGN.PINASSIGN0 |= ( (0x4UL<<SWM_PINASSIGN0_U0_TXD_O_SHIFT) | // TXD is PIO0_4 into 7:0
-  (0x0UL<<SWM_PINASSIGN0_U0_RXD_I_SHIFT)); // RXD is PIO0_0
-  // USART0 is now set to PIO0_4 for TX and PIO0_0 for RX.
-  // disable the switch matrix
+  (0x0UL<<SWM_PINASSIGN0_U0_RXD_I_SHIFT)); 
   SYSCON->SYSAHBCLKCTRL0 &= ~(SYSCON_SYSAHBCLKCTRL0_SWM_MASK);
-  // ---------------- End of Switch Matrix code -----------------------------------
 
-  // -------------- Step 4: Configure USART0 Clock ---------------------
+  // Setup clock
   SYSCON->UART0CLKSEL = 0x02;
   SYSCON->FRG[0].FRGCLKSEL = 0x00;
   SYSCON->FRG[0].FRGDIV = 0xFF;
   SYSCON->FRG[0].FRGMULT = 244;
 
+  // Setup baud rate generator and oversample
   USART0->BRG = 1279; 
   USART0->OSR = 0xF;
 
-  // USART CONFIG (only one bit to set here, really: data length)
-  USART0->CFG |= ( 0x1<<USART_CFG_DATALEN_SHIFT | // Data length: 8
-  0x0<<USART_CFG_PARITYSEL_SHIFT | // Parity: none
-  0x0<<USART_CFG_STOPLEN_SHIFT); // 1 stop bit.
-  // nothing to be done here.
+  // Configure UART
+  USART0->CFG |= ( 0x1<<USART_CFG_DATALEN_SHIFT |
+  0x0<<USART_CFG_PARITYSEL_SHIFT |
+  0x0<<USART_CFG_STOPLEN_SHIFT);
   USART0->CTL = 0;
-  // clear any pending flags, just in case something happened.
   USART0->STAT = 0xFFFF;
-  // Enable the USART0
-  USART0->CFG |= USART_CFG_ENABLE_MASK;// set bit 1 to 1.
+  USART0->CFG |= USART_CFG_ENABLE_MASK;
 }
 
 // Sets up the gpio and iocon to use the pio0 pins
@@ -143,71 +111,62 @@ void gpio_setup(){
 void read_temp(float *data){
 	uint8_t LM75_Buf[2];
 
-	WaitI2CPrimaryState(I2C0, I2C_STAT_MSTST_IDLE); // Wait for the Primary's state to be idle
-	I2C0->MSTDAT = (LM75_I2CAddress<<1) | 0; // Address with 0 for RWn bit (WRITE)
-	I2C0->MSTCTL = MSTCTL_START; // Start the transaction by setting the
+	WaitI2CPrimaryState(I2C0, I2C_STAT_MSTST_IDLE);
 
-	// MSTSTART bit to 1 in the Primary control register
-	WaitI2CPrimaryState(I2C0, I2C_STAT_MSTST_TXRDY); // Wait for the address to be ACK'd
+  // Start transmition in write mode
+	I2C0->MSTDAT = (LM75_I2CAddress<<1) | 0;
+	I2C0->MSTCTL = MSTCTL_START;
+
+	WaitI2CPrimaryState(I2C0, I2C_STAT_MSTST_TXRDY); 
+
+  // Write a 0 to the lm75 pointer register (0 means temp)
 	I2C0->MSTDAT = 0x00;
 	I2C0->MSTCTL = MSTCTL_CONTINUE;
 
-	WaitI2CPrimaryState(I2C0, I2C_STAT_MSTST_TXRDY); // Wait for the address to be ACK'd
-	I2C0->MSTDAT = (LM75_I2CAddress<<1) | 1; // Address with 1 for RWn bit (WRITE)
-	I2C0->MSTCTL = MSTCTL_START; // Start the transaction by setting the
+	WaitI2CPrimaryState(I2C0, I2C_STAT_MSTST_TXRDY);
 
-	// MSTSTART bit to 1 in the Primary control register.
+  // Start transmission in read mode
+	I2C0->MSTDAT = (LM75_I2CAddress<<1) | 1;
+	I2C0->MSTCTL = MSTCTL_START;
 
-	// PRIMARY_STATE_MASK is (0x7<<1)
-	while ((I2C0->STAT & PRIMARY_STATE_MASK) != I2C_STAT_MSTST_RXRDY)
-	{
-		// just spin... (wait)
-	}
+  WaitI2CPrimaryState(I2C0, I2C_STAT_MSTST_RXRDY);
 
+  // Read first byte
 	LM75_Buf[0] = I2C0->MSTDAT;
 	I2C0->MSTCTL = MSTCTL_CONTINUE;
-	// Wait for the address to be ACK’d
+
 	WaitI2CPrimaryState(I2C0, I2C_STAT_MSTST_RXRDY);
-	// PRIMARY_STATE_MASK is (0x7<<1)
 
-	while ((I2C0->STAT & PRIMARY_STATE_MASK) != I2C_STAT_MSTST_RXRDY)
-	{
-		// just spin... (wait)
-	}
-
+  // Read second byte
 	LM75_Buf[1] = I2C0->MSTDAT;
 	I2C0->MSTCTL = MSTCTL_STOP;
 
-	// PRIMARY_STATE_MASK is (0x7<<1)
-	while ((I2C0->STAT & PRIMARY_STATE_MASK) != I2C_STAT_MSTST_IDLE)
-	{
-		// just spin...
-	}
+  WaitI2CPrimaryState(I2C0, I2C_STAT_MSTST_IDLE);
 
-	// Convert the buffer into a single variable
-	// accessible outside this function via the *data pointer.
-	if( (LM75_Buf[0]&0x80) == 0x00){
-		*data = ((float)( ((LM75_Buf[0]<<8) + LM75_Buf[1])>>5) * 0.125);
+  // Convert buffer to usable float
+  // - LM75_Buf[0] & LM75_Buf[1] are MSB and LSB respectively
+  // - Value in twos compliment form
+  // - Last 5 digits are garbage
+  // - Resolution of 0.125
+	if( (LM75_Buf[0]&0x80) == 0x00){ // If msb is 0, implying positive number
+		*data = ((float) (((LM75_Buf[0]<<8) + LM75_Buf[1])>>5)) * 0.125; 
 	}
-	else{
-		*data = 0x800 - (( LM75_Buf[0]<<8) + ( LM75_Buf[1]>>5) );
+	else{ // If mab is 1, implying negative number
+		*data = 0x800 - (( LM75_Buf[0]<<8) + ( LM75_Buf[1]>>5));
 		*data = -(((float)(*data)) * 0.125);
 	}
 }
 
+// Helper function used for i2c communication
 void WaitI2CPrimaryState(I2C_Type * ptr_LPC_I2C, uint32_t state) {
 
 	// Check the Primary Pending bit (bit 0 of the i2c stat register)
-	// Wait for MSTPENDING bit set in STAT register
 	while(!(ptr_LPC_I2C->STAT & I2C_STAT_MSTPENDING_MASK)); // Wait
-	// Check to see that the state is correct.
-	// if it is not, then turn on PIO0_9 to indicate a problem
-	// Primary's state is in bits 3:1. PRIMARY_STATE_MASK is (0x7<<1)
 	if((ptr_LPC_I2C->STAT & PRIMARY_STATE_MASK) != state) // If primary state mismatch
 	{
 	  while(1); // die here and debug the problem
 	}
-	return; // If no mismatch, return
+	return; 
 }
 
 void checkButtonPressed(int button, bool *button_pressed){
