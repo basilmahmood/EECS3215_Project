@@ -24,6 +24,18 @@
     </div>
 </body>
 
+<table class="table table-striped">
+    <thead>
+      <tr>
+        <th scope="col">TimeStamp</th>
+        <th scope="col">Temprature (°C)</th>
+        <th scope="col">Interval (hh:mm:ss)</th>
+      </tr>
+    </thead>
+    <tbody>
+    </tbody>
+  </table>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.19.2/axios.min.js"></script>
 <script>
 setInterval(() => {
@@ -33,6 +45,14 @@ setInterval(() => {
     })
     .catch(err => console.log(err));
 }, 250)
+
+setInterval(() => {
+    axios.get('/logs')
+    .then(res => {
+        console.log(res.data)
+    })
+    .catch(err => console.log(err));
+}, 3000)
 </script>
 
 </html>
